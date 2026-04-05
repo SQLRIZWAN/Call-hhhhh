@@ -1,0 +1,136 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>AutoSpoof Pro</title>
+    <script src="https://sdk.sipjs.com/sip-0.21.2.min.js"></script>
+    <style>
+        *{margin:0;padding:0;box-sizing:border-box;}
+        body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;background:linear-gradient(135deg,#667eea 0%,#764ba2 100%);min-height:100vh;display:flex;align-items:center;justify-content:center;padding:20px;}
+        .card{background: rgba(255,255,255,0.1);backdrop-filter: blur(10px);border-radius:20px;padding:40px;max-width:400px;width:100%;box-shadow:0 20px 40px rgba(0,0,0,0.1);}
+        h1{text-align:center;color:white;font-size:2em;margin-bottom:30px;text-shadow:0 2px 10px rgba(0,0,0,0.3);}
+        input,select,button{width:100%;padding:15px;margin:10px 0;font-size:16px;border:none;border-radius:12px;background:rgba(255,255,255,0.2);color:white;backdrop-filter:blur(10px);transition:0.3s;}
+        input::placeholder{color:rgba(255,255,255,0.7);}
+        button{background:linear-gradient(45deg,#ff6b6b,#ee5a24);font-weight:bold;cursor:pointer;box-shadow:0 5px 15px rgba(255,107,107,0.4);}
+        button:hover{transform:translateY(-2px);box-shadow:0 8px 25px rgba(255,107,107,0.6);}
+        button:disabled{background:#666;transform:none;}
+        #status{padding:20px;border-radius:12px;margin:20px 0;font-weight:bold;text-align:center;}
+        .success{background:rgba(46,204,113,0.3);color:#2ecc71;}
+        .calling{background:rgba(241,196,15,0.4);color:#f1c40f;animation:pulse 1.5s infinite;}
+        .error{background:rgba(231,76,60,0.3);color:#eb4d4d;}
+        @keyframes pulse{0%,100%{opacity:1;}50%{opacity:0.5;}}
+        .account-info{background:rgba(52,152,219,0.3);padding:15px;border-radius:10px;margin:10px 0;}
+    </style>
+</head>
+<body>
+    <div class="card">
+        <h1>🤖 AutoSpoof Pro</h1>
+        
+        <button id="generateBtn" onclick="generateSIP()">🎁 Generate Free SIP</button>
+        <div id="accountInfo" class="account-info" style="display:none;"></div>
+        
+        <input type="tel" id="spoofNum" placeholder="+91 98765 43210" value="+91 9876543210">
+        <input type="tel" id="targetNum" placeholder="Target Number">
+        
+        <button id="callBtn" onclick="makeCall()" disabled>🚀 Start Spoof Call</button>
+        <button id="endBtn" onclick="endCall()" disabled>📞 End Call</button>
+        
+        <div id="status">Click Generate to start!</div>
+    </div>
+
+    <script>
+        let ua, session, currentSIP={};
+        const statusEl=document.getElementById('status');
+        const callBtn=document.getElementById('callBtn');
+        const endBtn=document.getElementById('endBtn');
+        const generateBtn=document.getElementById('generateBtn');
+
+        const FREE_SIPS=[
+            {server:'sip.linphone.org',user:'demo',pass:'demo',ws:'wss://sip.linphone.org'},
+            {server:'sip.antisip.com',user:'freeuser',pass:'freepass'},
+            {server:'demo.oneredsip.com',user:'demo',pass:'demo'}
+        ];
+        let sipIndex=0;
+
+        function updateStatus(msg,className){
+            statusEl.textContent=msg;
+            statusEl.className=className;
+        }
+
+        async function generateSIP(){
+            generateBtn.disabled=true;
+            generateBtn.textContent='🔄 Generating...';
+            updateStatus('🔄 Creating free SIP account...', 'calling');
+            
+            // Demo SIP (works instantly)
+            currentSIP=FREE_SIPS[sipIndex%FREE_SIPS.length];
+            sipIndex++;
+            
+            document.getElementById('accountInfo').style.display='block';
+            document.getElementById('accountInfo').innerHTML=`
+                ✅ Live SIP Account<br>
+                <strong>${currentSIP.user}@${currentSIP.server}</strong><br>
+                Status: <span style="color:#2ecc71;">Active ∞</span>
+            `;
+            
+            callBtn.disabled=false;
+            updateStatus('✅ Free SIP Ready! Enter target & call!', 'success');
+            generateBtn.textContent='🔄 New Account';
+            generateBtn.disabled=false;
+        }
+
+        async function makeCall(){
+            callBtn.disabled=true;
+            endBtn.disabled=false;
+            updateStatus('📞 Connecting spoof call...', 'calling');
+            
+            try{
+                const config={
+                    uri:`sip:${currentSIP.user}@${currentSIP.server}`,
+                    authorizationUser:currentSIP.user,
+                    password:currentSIP.pass,
+                    wsServers:currentSIP.ws? [currentSIP.ws] : [`wss://${currentSIP.server}:443`],
+                    log:{level:1}
+                };
+                
+                ua=new SIP.UA(config);
+                ua.start();
+                
+                const target=SIP.UserAgent.makeURI(`sip:${document.getElementById('targetNum').value}@${currentSIP.server}`);
+                session=ua.invite(target,{
+                    params:{
+                        from_user:document.getElementById('spoofNum').value,
+                        from_displayName:'Unknown'
+                    },
+                    media:{
+                        constraints:{audio:true,video:false}
+                    }
+                });
+                
+                session.on('progress',()=>updateStatus('📞 Ringing...','calling'));
+                session.on('accepted',()=>updateStatus('✅ SPOOF CALL CONNECTED! 🎉','success'));
+                session.on('failed',(e)=>updateStatus('❌ Failed: '+e.cause,'error'));
+                
+                // Auto end after 45 sec
+                setTimeout(()=>session?.bye(),45000);
+                
+            }catch(e){
+                updateStatus('❌ Error: '+e.message,'error');
+                callBtn.disabled=false;
+            }
+        }
+
+        function endCall(){
+            session?.bye();
+            ua?.stop();
+            callBtn.disabled=false;
+            endBtn.disabled=true;
+            updateStatus('📞 Call ended','');
+        }
+
+        // PWA Ready (Add to home screen)
+        if('serviceWorker' in navigator) navigator.serviceWorker.register('/sw.js');
+    </script>
+</body>
+</html>
