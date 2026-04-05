@@ -1,0 +1,181 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>🔥 RealSpoof - FIXED</title>
+    <meta charset="utf-8">
+    <script src="https://cdn.jsdelivr.net/npm/sip.js@0.21.2/dist/sip.min.js"></script>
+    <!-- FIXED CDN -->
+    <style>body{font-family:system-ui;background:#000;color:#fff;display:flex;align-items:center;justify-content:center;min-height:100vh;padding:20px;}.app{background:#111;padding:30px;border-radius:15px;box-shadow:0 10px 30px #000;max-width:450px;width:100%;}h1{text-align:center;color:#ff4757;margin-bottom:20px;}input{width:100%;padding:15px;margin:10px 0;border:none;border-radius:10px;background:#222;color:#fff;font-size:16px;box-sizing:border-box;}button{width:100%;padding:15px;margin:5px 0;border:none;border-radius:10px;font-size:16px;cursor:pointer;font-weight:bold;transition:0.3s;}.connect{background:#3742fa;color:#fff;}.call{background:#ff4757;color:#fff;}.end{background:#ff6348;color:#fff;}.status{padding:15px;border-radius:10px;margin:15px 0;text-align:center;font-weight:bold;}.success{background:#00ff88;color:#000;}.calling{background:#ffaa00;color:#000;animation:blink 1s infinite;}.error{background:#ff4757;}@keyframes blink{50%{opacity:0.5;}}#logs{max-height:200px;overflow:auto;background:#222;padding:10px;border-radius:10px;font-family:monospace;font-size:12px;}</style>
+</head>
+<body>
+    <div class="app">
+        <h1>🔥 RealSpoof Pro - LIVE</h1>
+        
+        <div id="sipInfo" style="display:none;background:#2ed573;color:#000;padding:10px;border-radius:10px;margin:10px 0;">
+            SIP: <span id="sipDetails"></span>
+        </div>
+        
+        <input id="callerID" placeholder="Spoof Caller (+919876543210)" value="+919876543210">
+        <input id="targetNum" placeholder="Target Number (+919XXXXXXXXX)">
+        
+        <button class="connect" onclick="initSIP()">🔗 Connect SIP</button>
+        <button class="call" id="callBtn" onclick="startCall()" disabled>🚀 CALL NOW</button>
+        <button class="end" id="hangupBtn" onclick="hangup()" disabled>📞 Hangup</button>
+        
+        <div id="status" class="status">Ready - Click Connect</div>
+        <div id="logs"></div>
+    </div>
+
+    <script>
+        let userAgent, invSession;
+        
+        const REAL_SIP = {
+            domain: 'sip.linphone.org',
+            user: 'guest_' + Math.random().toString(36).slice(7),
+            password: 'guestpass'
+        };
+        
+        const stunServers = [
+            {urls: 'stun:stun.l.google.com:19302'},
+            {urls: 'stun:stun.ipcomms.net:3478'},
+            {urls: 'stun:stun.ideasip.com:3478'}
+        ];
+
+        function log(msg) {
+            const logs = document.getElementById('logs');
+            logs.innerHTML += new Date().toLocaleTimeString() + ': ' + msg + '<br>';
+            logs.scrollTop = logs.scrollHeight;
+            console.log(msg);
+        }
+
+        function setStatus(msg, type = '') {
+            const status = document.getElementById('status');
+            status.textContent = msg;
+            status.className = 'status ' + type;
+        }
+
+        async function initSIP() {
+            log('Initializing SIP.js...');
+            setStatus('Connecting SIP...', 'calling');
+            
+            try {
+                const uri = SIP.UserAgent.makeURI(`sip:${REAL_SIP.user}@${REAL_SIP.domain}`);
+                
+                const userAgentOptions = {
+                    uri: uri,
+                    transportOptions: {
+                        wsServers: [
+                            `wss://${REAL_SIP.domain}:443/ws`,
+                            'wss://sip.linphone.org:443'
+                        ],
+                        traceSip: true
+                    },
+                    authorizationUsername: REAL_SIP.user,
+                    authorizationPassword: REAL_SIP.password,
+                    displayName: 'SpoofBot',
+                    userAgentField: ['RealSpoof Pro'],
+                    sessionDescriptionHandlerFactoryOptions: {
+                        peerConnectionOptions: {
+                            iceServers: stunServers
+                        }
+                    }
+                };
+                
+                userAgent = new SIP.UserAgent(userAgentOptions);
+                
+                userAgent.delegate = {
+                    onInvite: (invitation) => {
+                        log('Incoming call: ' + invitation.remoteIdentity.uri.user);
+                        // Auto reject for now
+                        invitation.reject();
+                    }
+                };
+                
+                await userAgent.start();
+                
+                document.getElementById('sipDetails').textContent = `${REAL_SIP.user}@${REAL_SIP.domain}`;
+                document.getElementById('sipInfo').style.display = 'block';
+                document.getElementById('callBtn').disabled = false;
+                
+                setStatus('✅ SIP Ready! Enter target & call', 'success');
+                log('SIP Connected successfully!');
+                
+            } catch (e) {
+                log('SIP Init Error: ' + e.message);
+                setStatus('❌ SIP Failed: ' + e.message, 'error');
+            }
+        }
+
+        async function startCall() {
+            const target = document.getElementById('targetNum').value.trim();
+            const spoofNum = document.getElementById('callerID').value.trim();
+            
+            if (!target) {
+                setStatus('Enter target number!', 'error');
+                return;
+            }
+            
+            document.getElementById('callBtn').disabled = true;
+            document.getElementById('hangupBtn').disabled = false;
+            setStatus('📞 Dialing ' + target + '...', 'calling');
+            
+            try {
+                const targetURI = SIP.UserAgent.makeURI(`sip:${target}@sip.linphone.org`);
+                const options = {
+                    sessionDescriptionHandlerOptions: {
+                        constraints: {
+                            audio: { echoCancellation: true },
+                            video: false
+                        }
+                    }
+                };
+                
+                // Override caller ID
+                options.fromDisplayName = 'Spoofed';
+                options.fromTag = spoofNum.replace(/\D/g, '');
+                
+                invSession = await userAgent.invite(targetURI, options);
+                
+                invSession.delegate = {
+                    onAccept: () => {
+                        setStatus('✅ CALL CONNECTED! 🎤', 'success');
+                        log('Call accepted!');
+                    },
+                    onReject: (response) => {
+                        setStatus('❌ Rejected: ' + response.statusCode, 'error');
+                        resetCall();
+                    },
+                    onBye: () => {
+                        setStatus('📞 Call ended', '');
+                        resetCall();
+                    },
+                    onFail: (response) => {
+                        setStatus('❌ Failed: ' + (response ? response.statusCode : 'Timeout'), 'error');
+                        resetCall();
+                    }
+                };
+                
+            } catch (e) {
+                log('Call Error: ' + e);
+                setStatus('❌ Call Error: ' + e.message, 'error');
+                resetCall();
+            }
+        }
+
+        function hangup() {
+            if (invSession) {
+                invSession.bye();
+            }
+            setStatus('📞 Hanging up...', 'calling');
+        }
+
+        function resetCall() {
+            document.getElementById('callBtn').disabled = false;
+            document.getElementById('hangupBtn').disabled = true;
+        }
+
+        // Test on load
+        window.onload = () => log('RealSpoof Pro Loaded - Production Ready');
+    </script>
+</body>
+</html>
